@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <div class="popup-header">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4285f4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15.5 2H8.6c-.4 0-.8.2-1.1.5-.3.3-.5.7-.5 1.1v12.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h9.8c.4 0 .8-.2 1.1-.5.3-.3.5-.7.5-1.1V6.5L15.5 2z"/>
+        <polyline points="14,2 14,8 20,8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <polyline points="9,15 12,12 15,15"/>
+      </svg>
+      <h1>Gmail to Drive</h1>
+    </div>
+
+    <div id="auth-status" class="status-section">
+      <div class="status-indicator">
+        <span id="status-dot" class="dot dot-disconnected"></span>
+        <span id="status-text">Checking...</span>
+      </div>
+    </div>
+
+    <div id="auth-actions" class="actions-section">
+      <button id="btn-sign-in" class="btn btn-primary" style="display: none;">Sign In with Google</button>
+      <button id="btn-sign-out" class="btn btn-secondary" style="display: none;">Sign Out</button>
+    </div>
+
+    <div class="info-section">
+      <p>Select emails in Gmail, then click the <strong>Save to Drive</strong> button in the toolbar.</p>
+    </div>
+
+    <div class="footer">
+      <a href="#" id="btn-options">Settings</a>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

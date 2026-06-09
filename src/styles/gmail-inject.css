@@ -1,0 +1,353 @@
+.gmail-to-drive-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  height: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  color: #444;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  font-size: 13px;
+  transition: background-color 0.15s;
+  margin-left: 6px;
+  border: 1px solid #dadce0;
+  background: white;
+  position: relative;
+  top: 0;
+}
+
+.gmail-to-drive-button:hover {
+  background-color: rgba(66, 133, 244, 0.08);
+  color: #4285f4;
+}
+
+.gmail-to-drive-button:active {
+  background-color: rgba(66, 133, 244, 0.15);
+}
+
+.gmail-to-drive-button svg {
+  flex-shrink: 0;
+}
+
+.gmail-to-drive-label {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.gmail-to-drive-separator {
+  display: inline-block;
+  width: 1px;
+  height: 20px;
+  background: #dadce0;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* Progress panel */
+.gmail-to-drive-progress {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 320px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  z-index: 10000;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  overflow: hidden;
+}
+
+.gtd-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #4285f4;
+  color: white;
+}
+
+.gtd-progress-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.gtd-progress-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.gtd-progress-body {
+  padding: 16px;
+}
+
+.gtd-progress-status {
+  font-size: 13px;
+  color: #202124;
+  margin-bottom: 8px;
+}
+
+.gtd-progress-bar-container {
+  height: 4px;
+  background: #e8eaed;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.gtd-progress-bar {
+  height: 100%;
+  background: #4285f4;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.gtd-progress-bar-success {
+  background: #34a853;
+}
+
+.gtd-progress-bar-warning {
+  background: #fbbc04;
+}
+
+.gtd-progress-bar-error {
+  background: #ea4335;
+}
+
+.gtd-progress-detail {
+  font-size: 12px;
+  color: #5f6368;
+}
+
+/* ========== Folder Picker Modal ========== */
+.gtd-picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+}
+
+.gtd-picker {
+  background: white;
+  border-radius: 12px;
+  width: 480px;
+  max-height: 560px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.gtd-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #4285f4;
+  color: white;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.gtd-picker-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+.gtd-picker-close:hover {
+  opacity: 1;
+}
+
+.gtd-picker-tabs {
+  display: flex;
+  border-bottom: 1px solid #dadce0;
+}
+
+.gtd-picker-tab {
+  flex: 1;
+  padding: 12px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  color: #5f6368;
+}
+
+.gtd-picker-tab.active {
+  color: #4285f4;
+  border-bottom-color: #4285f4;
+}
+
+.gtd-picker-tab:hover {
+  background: #f1f3f4;
+}
+
+.gtd-picker-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e8eaed;
+}
+
+.gtd-picker-back {
+  background: none;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 16px;
+  color: #5f6368;
+}
+
+.gtd-picker-back:hover:not(:disabled) {
+  background: #e8eaed;
+}
+
+.gtd-picker-back:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.gtd-picker-path {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: #202124;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gtd-picker-list {
+  flex: 1;
+  min-height: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.gtd-picker-loading,
+.gtd-picker-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #5f6368;
+  font-size: 13px;
+}
+
+.gtd-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #202124;
+  border-bottom: 1px solid #f1f3f4;
+}
+
+.gtd-picker-item:hover {
+  background: #e8f0fe;
+}
+
+.gtd-picker-item-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.gtd-picker-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gtd-picker-item-arrow {
+  color: #999;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.gtd-picker-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-top: 1px solid #dadce0;
+}
+
+.gtd-picker-footer-left,
+.gtd-picker-footer-right {
+  display: flex;
+  gap: 8px;
+}
+
+.gtd-picker-new-folder {
+  background: none;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  color: #5f6368;
+}
+
+.gtd-picker-new-folder:hover {
+  background: #e8eaed;
+}
+
+.gtd-picker-cancel {
+  background: none;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  color: #5f6368;
+}
+
+.gtd-picker-cancel:hover {
+  background: #e8eaed;
+}
+
+.gtd-picker-select {
+  background: #4285f4;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  color: white;
+}
+
+.gtd-picker-select:hover {
+  background: #3367d6;
+}

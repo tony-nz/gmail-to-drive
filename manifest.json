@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "Gmail to Drive",
+  "version": "1.0.0",
+  "description": "Save selected Gmail emails as PDFs with attachments to Google Drive",
+  "permissions": [
+    "identity",
+    "storage",
+    "offscreen",
+    "activeTab",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "https://www.googleapis.com/*"
+  ],
+  "oauth2": {
+    "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/drive"
+    ]
+  },
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content-script.js"],
+      "css": ["gmail-inject.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "32": "assets/icons/icon-32.png",
+      "48": "assets/icons/icon-48.png",
+      "128": "assets/icons/icon-128.png"
+    }
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
+  }
+}

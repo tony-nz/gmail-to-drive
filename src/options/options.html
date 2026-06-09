@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="options-container">
+    <h1>Gmail to Drive Settings</h1>
+
+    <div class="option-group">
+      <label>Save Location</label>
+      <div class="folder-picker">
+        <div id="current-location" class="current-location">
+          <span id="location-icon" class="location-icon">📁</span>
+          <span id="location-text">My Drive (root)</span>
+        </div>
+        <button id="btn-change-folder" class="btn btn-secondary">Change Folder</button>
+      </div>
+      <p class="help-text">Choose a folder in My Drive or a Shared Drive.</p>
+    </div>
+
+    <div id="folder-browser" class="folder-browser" style="display: none;">
+      <div class="browser-header">
+        <button id="btn-browser-back" class="btn-icon" aria-label="Back" disabled>&larr;</button>
+        <span id="browser-path" class="browser-path">My Drive</span>
+        <button id="btn-browser-close" class="btn-icon" aria-label="Close">&times;</button>
+      </div>
+      <div class="browser-tabs">
+        <button id="tab-my-drive" class="browser-tab active">My Drive</button>
+        <button id="tab-shared" class="browser-tab">Shared Drives</button>
+      </div>
+      <div id="browser-list" class="browser-list">
+        <div class="browser-loading">Loading...</div>
+      </div>
+      <div class="browser-actions">
+        <button id="btn-new-folder" class="btn btn-secondary btn-sm">New Folder</button>
+        <button id="btn-select-folder" class="btn btn-primary btn-sm">Select This Folder</button>
+      </div>
+    </div>
+
+    <div class="option-group">
+      <label>
+        <input type="checkbox" id="create-date-folders" checked>
+        Organize by date
+      </label>
+      <p class="help-text">Create subfolders by date (YYYY-MM-DD) within the save location.</p>
+    </div>
+
+    <div class="option-group">
+      <label>
+        <input type="checkbox" id="export-all-messages" checked>
+        Export all messages in thread
+      </label>
+      <p class="help-text">When enabled, all replies in a conversation are exported. Otherwise, only the first message.</p>
+    </div>
+
+    <div class="actions">
+      <button id="btn-save" class="btn btn-primary">Save Settings</button>
+      <span id="save-status" class="save-status"></span>
+    </div>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>
