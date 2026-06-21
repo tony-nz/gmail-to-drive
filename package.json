@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "build": "webpack --mode production",
-    "dev": "webpack --mode development --watch"
+    "dev": "webpack --mode development --watch",
+    "package": "npm run build && node scripts/package.js"
   },
   "devDependencies": {
     "copy-webpack-plugin": "^12.0.2",

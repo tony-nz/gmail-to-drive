@@ -10,14 +10,16 @@ wiring OAuth to the Store-assigned extension ID.
 
 ## 1. Build the upload package
 ```sh
-npm run build
-cd dist && zip -r ../gmail2drive.zip . && cd ..
+npm run package
 ```
+This builds `dist/` and produces `gmail2drive.zip` with the `key` field removed.
 Upload `gmail2drive.zip`.
 
-> Note: the manifest's `key` field is only for keeping a stable ID during local
-> (unpacked) development. The Store assigns its **own** ID and ignores it — you
-> can leave it in; it does not affect the Store build.
+> Important: the manifest's `key` field is kept in source only for a stable ID
+> during local (unpacked) development. The Chrome Web Store **rejects** a
+> manifest that contains `key` ("key field is not allowed in manifest"), and it
+> assigns its own extension ID. `npm run package` strips the key for you; your
+> dev `dist/` build keeps it so sideloading still works.
 
 ## 2. Create the Store item
 1. Go to the **Chrome Web Store Developer Dashboard**:
