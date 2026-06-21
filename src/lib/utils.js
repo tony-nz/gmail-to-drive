@@ -83,6 +83,17 @@ export function concurrencyLimit(tasks, limit) {
   });
 }
 
+// fetch() with a hard timeout so a stalled request can't hang the whole save.
+export async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function retryWithBackoff(fn, maxRetries = 3) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {

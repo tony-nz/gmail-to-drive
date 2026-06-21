@@ -1,8 +1,10 @@
+import { fetchWithTimeout } from './utils.js';
+
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 
 async function apiRequest(url, token, options = {}) {
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -115,7 +117,7 @@ export async function uploadFileResumable(name, mimeType, content, parentId, tok
     parents: [parentId],
   };
 
-  const initResponse = await fetch(`${UPLOAD_API}/files?uploadType=resumable`, {
+  const initResponse = await fetchWithTimeout(`${UPLOAD_API}/files?uploadType=resumable`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -132,14 +134,14 @@ export async function uploadFileResumable(name, mimeType, content, parentId, tok
 
   const uploadUrl = initResponse.headers.get('Location');
 
-  const uploadResponse = await fetch(uploadUrl, {
+  const uploadResponse = await fetchWithTimeout(uploadUrl, {
     method: 'PUT',
     headers: {
       'Content-Type': mimeType,
       'Content-Length': content.byteLength || content.length,
     },
     body: content,
-  });
+  }, 120000);
 
   if (!uploadResponse.ok) {
     throw new Error(`Drive resumable upload failed: ${uploadResponse.status}`);

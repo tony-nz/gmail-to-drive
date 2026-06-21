@@ -1,6 +1,8 @@
+// Note: chrome.identity.getAuthToken reads scopes from manifest.json's
+// "oauth2" block, not from here. Kept in sync for reference.
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/drive',
 ];
 
 let cachedToken = null;

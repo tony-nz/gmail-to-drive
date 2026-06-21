@@ -1,9 +1,9 @@
-import { base64UrlDecode, extractHeader, extractEmailAddress } from './utils.js';
+import { base64UrlDecode, extractHeader, extractEmailAddress, fetchWithTimeout } from './utils.js';
 
 const GMAIL_API = 'https://www.googleapis.com/gmail/v1/users/me';
 
 async function apiGet(endpoint, token) {
-  const response = await fetch(`${GMAIL_API}${endpoint}`, {
+  const response = await fetchWithTimeout(`${GMAIL_API}${endpoint}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -17,6 +17,16 @@ async function apiGet(endpoint, token) {
 
 export async function getThread(threadId, token) {
   return apiGet(`/threads/${threadId}?format=full`, token);
+}
+
+// Lightweight existence check — only fetches the thread id, not message bodies.
+export async function threadExists(threadId, token) {
+  try {
+    await apiGet(`/threads/${threadId}?format=minimal&fields=id`, token);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getMessage(messageId, token) {
@@ -104,6 +114,32 @@ export function extractAttachments(payload) {
   }
 
   return attachments;
+}
+
+// Inline images are parts with an image mime type and a Content-ID header,
+// referenced in the HTML body as src="cid:<content-id>".
+export function extractInlineImages(payload) {
+  const images = [];
+
+  function walk(parts) {
+    if (!parts) return;
+    for (const part of parts) {
+      const cidHeader = (part.headers || []).find((h) => h.name.toLowerCase() === 'content-id');
+      const isImage = part.mimeType && part.mimeType.startsWith('image/');
+      if (isImage && part.body?.attachmentId && cidHeader) {
+        images.push({
+          cid: cidHeader.value.replace(/[<>]/g, '').trim(),
+          attachmentId: part.body.attachmentId,
+          mimeType: part.mimeType,
+          size: part.body.size || 0,
+        });
+      }
+      if (part.parts) walk(part.parts);
+    }
+  }
+
+  if (payload.parts) walk(payload.parts);
+  return images;
 }
 
 export function getMessageMeta(message) {

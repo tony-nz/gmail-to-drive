@@ -20,27 +20,23 @@ function getActionBar() {
   return document.querySelector('.G-atb');
 }
 
-function getActionButtonContainer() {
+// Find the action icon (Archive/Delete) we want to sit next to.
+function getAnchorButton() {
   const bar = getActionBar();
   if (!bar) return null;
 
-  const archiveBtn = bar.querySelector('[aria-label="Archive"]') ||
-                     bar.querySelector('[aria-label="Delete"]') ||
-                     bar.querySelector('[act="7"]') ||
-                     bar.querySelector('[act="10"]');
-
-  if (archiveBtn) {
-    return archiveBtn.parentElement;
-  }
-
-  return bar;
+  return bar.querySelector('[aria-label="Delete"]') ||
+         bar.querySelector('[aria-label="Archive"]') ||
+         bar.querySelector('[act="10"]') ||
+         bar.querySelector('[act="7"]') ||
+         null;
 }
 
 export function injectButton() {
   if (document.getElementById(BUTTON_ID)) return;
 
-  const container = getActionButtonContainer();
-  if (!container) return;
+  const bar = getActionBar();
+  if (!bar) return;
 
   const button = document.createElement('div');
   button.id = BUTTON_ID;
@@ -60,7 +56,14 @@ export function injectButton() {
     <span class="gmail-to-drive-label">Save to Drive</span>
   `;
 
-  container.appendChild(button);
+  // Place it immediately after the Delete/Archive icon so it stays in the
+  // action cluster regardless of which Gmail view is showing.
+  const anchor = getAnchorButton();
+  if (anchor && anchor.parentElement) {
+    anchor.parentElement.insertBefore(button, anchor.nextSibling);
+  } else {
+    bar.appendChild(button);
+  }
 
   return button;
 }

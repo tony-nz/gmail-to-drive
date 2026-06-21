@@ -21,29 +21,38 @@ chrome.runtime.onMessage.addListener((message) => {
     });
 });
 
-async function convertToPdf({ html, subject, from, date }) {
+async function convertToPdf({ subject, messages }) {
   const container = document.getElementById('pdf-container');
 
-  const headerHtml = `
-    <div style="font-family: Arial, sans-serif; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #4285f4;">
-      <h2 style="margin: 0 0 10px 0; font-size: 18px; color: #202124;">${escapeHtml(subject)}</h2>
-      <div style="font-size: 13px; color: #5f6368;">
-        <div style="margin-bottom: 2px;"><strong>From:</strong> ${escapeHtml(from)}</div>
-        <div><strong>Date:</strong> ${escapeHtml(date)}</div>
-      </div>
+  const titleHtml = `
+    <div style="font-family: Arial, sans-serif; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #4285f4;">
+      <h2 style="margin: 0; font-size: 18px; color: #202124;">${escapeHtml(subject)}</h2>
     </div>
   `;
 
-  // Clean up the email HTML
-  const cleanedHtml = cleanEmailHtml(html);
+  // Each message: a small From/Date header, then its cleaned body.
+  // Messages are separated by a divider so the whole thread reads as one document.
+  const bodyHtml = messages.map((m, i) => {
+    const divider = i > 0
+      ? '<div style="border-top: 1px solid #dadce0; margin: 28px 0 18px;"></div>'
+      : '';
+    const metaHtml = `
+      <div style="font-family: Arial, sans-serif; font-size: 13px; color: #5f6368; margin-bottom: 12px;">
+        <div style="margin-bottom: 2px;"><strong>From:</strong> ${escapeHtml(m.from)}</div>
+        <div><strong>Date:</strong> ${escapeHtml(m.date)}</div>
+      </div>
+    `;
+    const cleanedHtml = cleanEmailHtml(m.html);
+    return `${divider}${metaHtml}<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #202124; word-wrap: break-word;">${cleanedHtml}</div>`;
+  }).join('');
 
-  container.innerHTML = headerHtml + `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #202124; word-wrap: break-word;">${cleanedHtml}</div>`;
+  container.innerHTML = titleHtml + bodyHtml;
 
   // Wait for images to load
   await waitForImages(container);
 
-  // Small delay to let the browser finish layout
-  await new Promise((r) => setTimeout(r, 200));
+  // Brief delay to let the browser finish layout
+  await new Promise((r) => setTimeout(r, 50));
 
   console.log('[GTD Offscreen] Container size:', container.offsetWidth, 'x', container.offsetHeight);
   console.log('[GTD Offscreen] Container text length:', container.innerText.length);
@@ -53,10 +62,11 @@ async function convertToPdf({ html, subject, from, date }) {
     filename: 'email.pdf',
     image: { type: 'jpeg', quality: 0.95 },
     html2canvas: {
-      scale: 2,
+      scale: 1.5,
       useCORS: true,
       allowTaint: true,
       logging: false,
+      imageTimeout: 5000,
       width: 794,
       windowWidth: 794,
     },
@@ -95,6 +105,10 @@ function cleanEmailHtml(html) {
 
   // Remove 1x1 tracking pixels
   cleaned = cleaned.replace(/<img[^>]+(?:width|height)\s*=\s*["']?1["']?[^>]*>/gi, '');
+
+  // Remove any leftover cid: images that couldn't be embedded — they can't be
+  // loaded here and would only spew CORS errors and stall rendering.
+  cleaned = cleaned.replace(/<img[^>]+src=["']cid:[^"']*["'][^>]*>/gi, '');
 
   // Make images have max-width to fit the page
   cleaned = cleaned.replace(/<img/gi, '<img style="max-width: 100%; height: auto;" ');

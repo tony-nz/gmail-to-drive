@@ -32,7 +32,19 @@ export async function closeOffscreenDocument() {
   offscreenReady = false;
 }
 
-export async function generatePdf(html, subject, from, date) {
+// Serialize PDF generation: the offscreen doc has a single shared #pdf-container,
+// so concurrent renders would clobber each other. html2canvas is CPU-bound and
+// can't parallelize within one page anyway, so a queue costs nothing.
+let pdfQueue = Promise.resolve();
+
+export function generatePdf(subject, messages) {
+  const run = () => generatePdfNow(subject, messages);
+  const result = pdfQueue.then(run, run);
+  pdfQueue = result.catch(() => {});
+  return result;
+}
+
+async function generatePdfNow(subject, messages) {
   await ensureOffscreenDocument();
 
   const id = ++requestId;
@@ -41,17 +53,15 @@ export async function generatePdf(html, subject, from, date) {
     const timeout = setTimeout(() => {
       pendingRequests.delete(id);
       reject(new Error('PDF generation timed out'));
-    }, 30000);
+    }, 60000);
 
     pendingRequests.set(id, { resolve, reject, timeout });
 
     chrome.runtime.sendMessage({
       action: 'GENERATE_PDF',
       id,
-      html,
       subject,
-      from,
-      date,
+      messages,
     });
   });
 }

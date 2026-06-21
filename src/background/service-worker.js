@@ -1,11 +1,11 @@
 import { getToken, clearCachedToken } from '../lib/auth.js';
-import { getThread, extractHtmlBody, extractAttachments, getAttachment, getMessageMeta, listRecentThreads } from '../lib/gmail-api.js';
+import { getThread, threadExists, extractHtmlBody, extractAttachments, extractInlineImages, getAttachment, getMessageMeta, listRecentThreads } from '../lib/gmail-api.js';
 import {
   ensureSavePath, smartUploadAnywhere,
   listSharedDrives, listFolders, getFolderInfo, createFolderInDrive,
 } from '../lib/drive-api.js';
 import { generatePdf, handlePdfResponse, closeOffscreenDocument } from '../lib/pdf-generator.js';
-import { sanitizeFilename, formatDate, concurrencyLimit, retryWithBackoff } from '../lib/utils.js';
+import { sanitizeFilename, arrayBufferToBase64, concurrencyLimit, retryWithBackoff } from '../lib/utils.js';
 
 const CONCURRENCY = 3;
 
@@ -107,15 +107,57 @@ async function handleSaveToDrive(threadIds, tabId, destination) {
     console.log('[GTD] Using picker destination:', destination.folderId, destination.path);
   }
 
-  console.log('[GTD] Settings:', JSON.stringify(settings));
-
+  const supportsShared = !!settings.driveId;
+  const destinationId = settings.destinationFolderId || 'root';
   const results = { success: 0, failed: 0, errors: [], folderLinks: [] };
 
-  const tasks = threadIds.map((threadId, index) => {
-    return () => processThread(threadId, token, settings, tabId, index, threadIds.length, results);
-  });
+  try {
+    // 1. Fetch every selected thread (concurrently), preserving selection order.
+    notifyTab(tabId, {
+      action: 'SAVE_PROGRESS', current: 0, total: threadIds.length,
+      status: `Fetching ${threadIds.length} conversation${threadIds.length > 1 ? 's' : ''}...`,
+    });
 
-  await concurrencyLimit(tasks, CONCURRENCY);
+    const fetchTasks = threadIds.map((id) => () => retryWithBackoff(() => getThread(id, token), 2));
+    const settled = await concurrencyLimit(fetchTasks, CONCURRENCY);
+
+    const threads = [];
+    settled.forEach((r, i) => {
+      const thread = r.status === 'fulfilled' ? r.value : null;
+      if (thread?.messages?.length > 0) {
+        threads.push(thread);
+      } else {
+        results.failed++;
+        results.errors.push({
+          threadId: threadIds[i],
+          error: r.reason?.message || 'Thread returned no messages',
+        });
+      }
+    });
+
+    if (threads.length === 0) {
+      throw new Error('Could not fetch any of the selected emails.');
+    }
+
+    // 2. Each conversation -> its own folder (named after that conversation's
+    //    subject), with one combined PDF and that conversation's attachments.
+    for (let t = 0; t < threads.length; t++) {
+      try {
+        await saveConversation(
+          threads[t], destinationId, supportsShared, token, tabId, results, t + 1, threads.length
+        );
+        results.success++;
+      } catch (err) {
+        console.error('[GTD] Conversation FAILED:', err.message, err.stack);
+        results.failed++;
+        results.errors.push({ error: err.message });
+      }
+    }
+  } catch (error) {
+    console.error('[GTD] Save FAILED:', error.message, error.stack);
+    if (results.failed === 0) results.failed = threadIds.length;
+    results.errors.push({ error: error.message });
+  }
 
   await closeOffscreenDocument();
 
@@ -124,121 +166,128 @@ async function handleSaveToDrive(threadIds, tabId, destination) {
     console.error('[GTD] Errors:', JSON.stringify(results.errors));
   }
 
-  notifyTab(tabId, {
-    action: 'SAVE_COMPLETE',
-    results,
-  });
+  notifyTab(tabId, { action: 'SAVE_COMPLETE', results });
 }
 
-async function processThread(threadId, token, settings, tabId, index, total, results) {
-  try {
-    await retryWithBackoff(async () => {
-      console.log(`[GTD] Processing thread ${index + 1}/${total}: ${threadId}`);
+// Save one conversation into its own subject-named folder: a single combined
+// PDF of all its messages, plus all its attachments.
+async function saveConversation(thread, destinationId, supportsShared, token, tabId, results, index, total) {
+  const messages = thread.messages;
+  const folderName = sanitizeFilename(getMessageMeta(messages[0]).subject);
+  const label = total > 1 ? ` (${index}/${total})` : '';
+  console.log(`[GTD] Conversation "${folderName}": ${messages.length} message(s)`);
 
-      notifyTab(tabId, {
-        action: 'SAVE_PROGRESS',
-        current: index + 1,
-        total,
-        status: `Fetching email ${index + 1} of ${total}...`,
-      });
+  notifyTab(tabId, {
+    action: 'SAVE_PROGRESS', current: index - 1, total,
+    status: `Creating folder "${folderName}"${label}...`,
+  });
 
-      let thread;
-      try {
-        thread = await getThread(threadId, token);
-        console.log(`[GTD] Thread fetched, ${thread.messages?.length || 0} messages`);
-      } catch (err) {
-        console.warn(`[GTD] Thread fetch failed for "${threadId}": ${err.message}`);
-        console.log('[GTD] Thread ID from DOM may be invalid. The Gmail UI uses client-side IDs that differ from API IDs.');
-        throw new Error(`Could not fetch thread "${threadId}". Gmail DOM returned a client-side ID that the API doesn't recognize. Try using the Gmail search approach instead.`);
-      }
+  const folder = await ensureSavePath(destinationId, null, folderName, token, supportsShared);
 
-      const messages = thread.messages || [];
-
-      if (messages.length === 0) {
-        console.warn(`[GTD] Thread "${threadId}" returned 0 messages - likely an invalid/client-side thread ID`);
-        throw new Error(`Thread "${threadId}" returned no messages. The ID may be a Gmail client-side reference.`);
-      }
-
-      for (let i = 0; i < messages.length; i++) {
-        const message = messages[i];
-        const meta = getMessageMeta(message);
-        console.log(`[GTD] Message ${i + 1}: "${meta.subject}" from ${meta.from}`);
-
-        const folderName = sanitizeFilename(`${meta.subject} - ${meta.from}`);
-        const dateStr = settings.createDateFolders ? formatDate(new Date(meta.date)) : null;
-        const supportsShared = !!settings.driveId;
-        const destinationId = settings.destinationFolderId || 'root';
-
-        console.log(`[GTD] Creating folder path: dest=${destinationId}, date=${dateStr}, name=${folderName}`);
-
-        notifyTab(tabId, {
-          action: 'SAVE_PROGRESS',
-          current: index + 1,
-          total,
-          status: `Creating folders for "${meta.subject}"...`,
-        });
-
-        const folder = await ensureSavePath(
-          destinationId, dateStr, folderName, token, supportsShared
-        );
-        console.log(`[GTD] Folder created/found: ${folder.id} (${folder.name})`);
-
-        const htmlBody = extractHtmlBody(message.payload);
-        if (htmlBody) {
-          console.log(`[GTD] Generating PDF (${htmlBody.length} chars of HTML)`);
-          notifyTab(tabId, {
-            action: 'SAVE_PROGRESS',
-            current: index + 1,
-            total,
-            status: `Generating PDF for "${meta.subject}"...`,
-          });
-
-          const pdfData = await generatePdf(htmlBody, meta.subject, meta.from, meta.date);
-          console.log(`[GTD] PDF generated (${pdfData.length} base64 chars)`);
-
-          const pdfBytes = base64ToUint8Array(pdfData);
-          const pdfName = messages.length > 1 ? `email-${i + 1}.pdf` : 'email.pdf';
-
-          notifyTab(tabId, {
-            action: 'SAVE_PROGRESS',
-            current: index + 1,
-            total,
-            status: `Uploading ${pdfName}...`,
-          });
-
-          const uploaded = await smartUploadAnywhere(pdfName, 'application/pdf', pdfBytes, folder.id, token, supportsShared);
-          console.log(`[GTD] PDF uploaded: ${uploaded.id}, link: ${uploaded.webViewLink}`);
-          results.folderLinks.push(uploaded.webViewLink);
-        } else {
-          console.warn('[GTD] No HTML body found for message');
-        }
-
-        const attachments = extractAttachments(message.payload);
-        console.log(`[GTD] ${attachments.length} attachments found`);
-
-        for (const att of attachments) {
-          console.log(`[GTD] Downloading attachment: ${att.filename} (${att.size} bytes)`);
-          notifyTab(tabId, {
-            action: 'SAVE_PROGRESS',
-            current: index + 1,
-            total,
-            status: `Uploading ${att.filename}...`,
-          });
-
-          const data = await getAttachment(message.id, att.attachmentId, token);
-          const uploaded = await smartUploadAnywhere(att.filename, att.mimeType, data, folder.id, token, supportsShared);
-          console.log(`[GTD] Attachment uploaded: ${uploaded.id}`);
-        }
-      }
-
-      results.success++;
-      console.log(`[GTD] Thread ${threadId} done`);
-    }, 2);
-  } catch (error) {
-    console.error(`[GTD] Thread ${threadId} FAILED:`, error.message, error.stack);
-    results.failed++;
-    results.errors.push({ threadId, error: error.message });
+  // One combined PDF of every message in this conversation. Inline images
+  // (cid: references) are downloaded and embedded so they render in the PDF.
+  const pdfMessages = [];
+  for (const m of messages) {
+    let html = extractHtmlBody(m.payload);
+    if (!html) continue;
+    html = await embedInlineImages(html, m, token);
+    const meta = getMessageMeta(m);
+    pdfMessages.push({ html, from: meta.from, date: meta.date, subject: meta.subject });
   }
+
+  if (pdfMessages.length > 0) {
+    notifyTab(tabId, {
+      action: 'SAVE_PROGRESS', current: index - 1, total,
+      status: `Generating PDF for "${folderName}"${label}...`,
+    });
+
+    const pdfData = await generatePdf(folderName, pdfMessages);
+    const pdfBytes = base64ToUint8Array(pdfData);
+
+    notifyTab(tabId, {
+      action: 'SAVE_PROGRESS', current: index - 1, total,
+      status: `Uploading PDF for "${folderName}"${label}...`,
+    });
+
+    const uploaded = await smartUploadAnywhere(
+      `${folderName}.pdf`, 'application/pdf', pdfBytes, folder.id, token, supportsShared
+    );
+    console.log(`[GTD] PDF uploaded: ${uploaded.id}`);
+    results.folderLinks.push(uploaded.webViewLink);
+  } else {
+    console.warn(`[GTD] No HTML bodies found in "${folderName}"`);
+  }
+
+  // All attachments from this conversation, into the same folder. Quoted
+  // replies repeat the same files, so dedupe by name + size + type.
+  const attachments = [];
+  const seen = new Set();
+  for (const message of messages) {
+    for (const att of extractAttachments(message.payload)) {
+      const key = `${att.filename}|${att.size}|${att.mimeType}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      attachments.push({ messageId: message.id, att });
+    }
+  }
+
+  if (attachments.length > 0) {
+    const totalAtt = attachments.length;
+    let doneAtt = 0;
+    const attachmentTasks = attachments.map(({ messageId, att }) => async () => {
+      try {
+        await uploadAttachment(messageId, att, folder.id, token, supportsShared);
+      } catch (err) {
+        console.error(`[GTD] Attachment "${att.filename}" failed:`, err.message);
+        results.errors.push({ attachment: att.filename, error: err.message });
+      } finally {
+        doneAtt++;
+        notifyTab(tabId, {
+          action: 'SAVE_PROGRESS', current: index - 1, total,
+          status: `Uploading attachments for "${folderName}" (${doneAtt}/${totalAtt})${label}...`,
+        });
+      }
+    });
+    await concurrencyLimit(attachmentTasks, CONCURRENCY);
+  }
+}
+
+// Replace cid: image references in the HTML with embedded data URIs so they
+// render in the PDF (the offscreen page can't fetch cid: URLs directly).
+// Only embed small inline images (logos/signatures). Large inline photos are
+// left as cid: refs (stripped by the offscreen renderer) and still saved as
+// attachments — embedding them would blow past the 64MB message size limit.
+const MAX_INLINE_IMAGE_BYTES = 1024 * 1024; // 1 MB
+
+async function embedInlineImages(html, message, token) {
+  const inline = extractInlineImages(message.payload)
+    .filter((img) => !img.size || img.size <= MAX_INLINE_IMAGE_BYTES);
+  if (inline.length === 0) return html;
+
+  let result = html;
+  await Promise.all(inline.map(async (img) => {
+    try {
+      const bytes = await getAttachment(message.id, img.attachmentId, token);
+      const dataUri = `data:${img.mimeType};base64,${arrayBufferToBase64(bytes)}`;
+      const cidEsc = img.cid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Match src="cid:xxx" / src='cid:xxx' regardless of quoting.
+      result = result.replace(new RegExp(`cid:${cidEsc}`, 'g'), dataUri);
+    } catch (err) {
+      console.warn(`[GTD] Could not embed inline image cid:${img.cid}: ${err.message}`);
+    }
+  }));
+
+  return result;
+}
+
+async function uploadAttachment(messageId, att, folderId, token, supportsShared) {
+  return retryWithBackoff(async () => {
+    console.log(`[GTD] Downloading attachment: ${att.filename} (${att.size} bytes)`);
+    const data = await getAttachment(messageId, att.attachmentId, token);
+    const uploaded = await smartUploadAnywhere(att.filename, att.mimeType, data, folderId, token, supportsShared);
+    console.log(`[GTD] Attachment uploaded: ${uploaded.id}`);
+    return uploaded;
+  }, 2);
 }
 
 function base64ToUint8Array(base64) {
@@ -256,23 +305,17 @@ function notifyTab(tabId, message) {
 }
 
 async function resolveThreadIds(candidateIds, token) {
-  const validIds = [];
+  // Validate all candidate IDs in parallel using lightweight existence checks
+  // (no message bodies). processThread re-fetches the full thread later.
+  const checks = await Promise.all(
+    candidateIds.map((id) => threadExists(id, token).then((ok) => (ok ? id : null)))
+  );
+  const validIds = checks.filter(Boolean);
 
-  // First try each candidate ID directly against the API
-  for (const id of candidateIds) {
-    try {
-      const thread = await getThread(id, token);
-      if (thread.messages && thread.messages.length > 0) {
-        console.log(`[GTD] ID "${id}" is valid, ${thread.messages.length} messages`);
-        validIds.push(id);
-        continue;
-      }
-    } catch {
-      // Not a valid API ID
-    }
+  if (validIds.length > 0) {
+    console.log(`[GTD] ${validIds.length}/${candidateIds.length} candidate IDs are valid`);
+    return validIds;
   }
-
-  if (validIds.length > 0) return validIds;
 
   // Fallback: list recent threads and return the count the user selected
   console.log(`[GTD] None of the ${candidateIds.length} DOM IDs were valid API IDs. Falling back to recent threads.`);
