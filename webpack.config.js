@@ -33,7 +33,7 @@ module.exports = {
         { from: 'src/options/options.css', to: '.' },
         { from: 'src/offscreen/offscreen.html', to: '.' },
         { from: 'src/styles/gmail-inject.css', to: '.' },
-        { from: 'assets', to: 'assets' },
+        { from: 'assets', to: 'assets', globOptions: { ignore: ['**/design/**'] } },
       ],
     }),
   ],

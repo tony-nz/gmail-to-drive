@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gmail2Drive — Privacy Policy</title>
+  <meta name="description" content="Privacy policy for the Gmail2Drive Chrome extension." />
+  <style>
+    :root { --blue: #1a73e8; --ink: #202124; --muted: #5f6368; --line: #e8eaed; --bg: #f8f9fa; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Google Sans', Roboto, -apple-system, Arial, sans-serif;
+      color: var(--ink);
+      line-height: 1.7;
+      background: #fff;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 48px 24px 64px; }
+    .top { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+    .top img { width: 40px; height: 40px; }
+    .top a { color: var(--blue); text-decoration: none; font-size: 14px; }
+    h1 { font-size: 32px; margin: 12px 0 4px; }
+    .updated { color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+    h2 { font-size: 20px; margin: 36px 0 10px; }
+    p, li { color: #3c4043; }
+    code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 90%; }
+    a { color: var(--blue); }
+    .callout { background: var(--bg); border-left: 4px solid var(--blue); padding: 14px 18px; border-radius: 6px; }
+    footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <img src="logo.png" alt="Gmail2Drive logo" />
+      <a href="index.html">&larr; Gmail2Drive</a>
+    </div>
+    <h1>Privacy Policy</h1>
+    <div class="updated">Last updated: 21 June 2026</div>
+
+    <p>Gmail2Drive is a Chrome extension that saves Gmail emails you select as PDFs, along with their attachments, into your own Google Drive.</p>
+
+    <h2>What the extension accesses</h2>
+    <p>To do its job, Gmail2Drive uses Google authorization (OAuth) to request the following access <strong>on your behalf, within your own Google account</strong>:</p>
+    <ul>
+      <li><strong>Read your Gmail messages</strong> (<code>gmail.readonly</code>) — only the emails you explicitly select are read, in order to render them to PDF and download their attachments. Emails are never modified, deleted, or sent.</li>
+      <li><strong>Google Drive</strong> (<code>drive</code>) — used to create folders and upload the generated PDFs and attachments, and to let you browse and choose a destination folder.</li>
+    </ul>
+
+    <h2>What data is collected</h2>
+    <p class="callout"><strong>None.</strong> Gmail2Drive does not collect, store, transmit, sell, or share any of your data with the developer or any third party. There are no analytics, no tracking, and no external servers.</p>
+
+    <h2>Where your data goes</h2>
+    <p>All processing happens locally in your browser/extension. Your email content and attachments travel only between your browser and <strong>Google's own APIs</strong> (Gmail and Drive) using your authorization. PDFs and attachments are written solely to <strong>your</strong> Google Drive, to the folder you choose.</p>
+    <p>The only data the extension stores is your <strong>preferences</strong> (such as your chosen destination folder), kept in Chrome's <code>storage.sync</code> so your settings follow your Chrome profile. This never leaves Google's infrastructure.</p>
+
+    <h2>Permissions</h2>
+    <ul>
+      <li><code>identity</code> — to obtain a Google OAuth token for the Gmail and Drive APIs.</li>
+      <li><code>storage</code> — to remember your settings.</li>
+      <li><code>offscreen</code> — to render selected emails to PDF in the background.</li>
+      <li><code>activeTab</code> / host access to <code>mail.google.com</code> — to add the "Save to Drive" button to Gmail.</li>
+      <li>host access to <code>www.googleapis.com</code> — to call the Gmail and Drive APIs.</li>
+    </ul>
+
+    <h2>Data retention and deletion</h2>
+    <p>The extension retains no data of its own beyond your local settings, which you can clear at any time by removing the extension. Files saved to your Google Drive are owned and controlled entirely by you.</p>
+
+    <h2>Revoking access</h2>
+    <p>You can revoke Gmail2Drive's access to your Google account at any time at <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about this policy: <a href="mailto:tony@myers.co.nz">tony@myers.co.nz</a></p>
+
+    <footer>Gmail2Drive · <a href="index.html">Home</a></footer>
+  </div>
+</body>
+</html>

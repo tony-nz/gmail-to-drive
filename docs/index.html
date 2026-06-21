@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gmail2Drive — Save Gmail emails as PDFs to Google Drive</title>
+  <meta name="description" content="Save selected Gmail emails as PDFs, with their attachments, straight to your Google Drive — organised into folders." />
+  <style>
+    :root {
+      --blue: #1a73e8;
+      --ink: #202124;
+      --muted: #5f6368;
+      --line: #e8eaed;
+      --bg: #f8f9fa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Google Sans', Roboto, -apple-system, Arial, sans-serif;
+      color: var(--ink);
+      line-height: 1.6;
+      background: #fff;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+    header {
+      text-align: center;
+      padding: 72px 24px 48px;
+      background: linear-gradient(180deg, #fff 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--line);
+    }
+    header img { width: 96px; height: 96px; }
+    header h1 { font-size: 40px; margin: 16px 0 8px; }
+    header p { font-size: 19px; color: var(--muted); margin: 0 auto; max-width: 540px; }
+    .btn {
+      display: inline-block;
+      margin-top: 28px;
+      background: var(--blue);
+      color: #fff;
+      text-decoration: none;
+      padding: 12px 28px;
+      border-radius: 24px;
+      font-weight: 500;
+      font-size: 16px;
+    }
+    .btn.secondary { background: #fff; color: var(--blue); border: 1px solid #dadce0; margin-left: 8px; }
+    section { padding: 48px 0; }
+    h2 { font-size: 26px; margin: 0 0 24px; }
+    .features { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 600px) { .features { grid-template-columns: 1fr; } }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px 22px;
+      background: #fff;
+    }
+    .card h3 { margin: 0 0 6px; font-size: 17px; }
+    .card p { margin: 0; color: var(--muted); font-size: 15px; }
+    ol { padding-left: 20px; }
+    ol li { margin-bottom: 10px; }
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 32px 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    footer a { color: var(--blue); text-decoration: none; }
+    .note { background: var(--bg); border-radius: 12px; padding: 16px 20px; color: var(--muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="logo.png" alt="Gmail2Drive logo" />
+    <h1>Gmail2Drive</h1>
+    <p>Save selected Gmail emails as PDFs — with their attachments — straight to your Google Drive, organised into folders.</p>
+    <div>
+      <a class="btn" href="#install">Get started</a>
+      <a class="btn secondary" href="privacy.html">Privacy</a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section>
+      <h2>What it does</h2>
+      <div class="features">
+        <div class="card">
+          <h3>One folder per conversation</h3>
+          <p>Each selected conversation is saved into its own folder, named after the email subject.</p>
+        </div>
+        <div class="card">
+          <h3>Whole thread in one PDF</h3>
+          <p>Every message in a conversation is combined into a single, tidy PDF.</p>
+        </div>
+        <div class="card">
+          <h3>Attachments included</h3>
+          <p>All attachments are saved alongside the PDF, with duplicates from quoted replies removed.</p>
+        </div>
+        <div class="card">
+          <h3>Your Drive, your choice</h3>
+          <p>Pick any destination folder, including Shared Drives. Inline logos and signatures are embedded in the PDF.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="install">
+      <h2>Getting started</h2>
+      <ol>
+        <li>Install Gmail2Drive (via the private install link shared with you).</li>
+        <li>Open Gmail and select one or more conversations.</li>
+        <li>Click <strong>Save to Drive</strong> in the toolbar.</li>
+        <li>Approve the one-time Google permission prompt, then choose a destination folder.</li>
+      </ol>
+      <p class="note">Gmail2Drive is currently distributed privately. To use it, your Google account must be added to the access list — contact the developer if you need access.</p>
+    </section>
+
+    <section>
+      <h2>Privacy first</h2>
+      <p>Everything runs in your browser and talks only to Google's own Gmail and Drive APIs using your authorization. No external servers, no tracking, and nothing is collected. Read the full <a href="privacy.html">privacy policy</a>.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>Gmail2Drive · <a href="privacy.html">Privacy Policy</a> · <a href="mailto:tony@myers.co.nz">tony@myers.co.nz</a></p>
+  </footer>
+</body>
+</html>
