@@ -48,6 +48,12 @@ async function convertToPdf({ subject, messages }) {
 
   container.innerHTML = titleHtml + bodyHtml;
 
+  // Remove quoted reply history so each message contributes only its own new
+  // content. Every reply repeats the whole prior thread, so without this a long
+  // conversation duplicates content O(n^2) and can balloon to hundreds of pages
+  // — enough to overflow html2canvas's max canvas size and render all-white.
+  stripQuotedHistory(container);
+
   // Wait for images to load
   await waitForImages(container);
 
@@ -57,12 +63,23 @@ async function convertToPdf({ subject, messages }) {
   console.log('[GTD Offscreen] Container size:', container.offsetWidth, 'x', container.offsetHeight);
   console.log('[GTD Offscreen] Container text length:', container.innerText.length);
 
+  // A single html2canvas canvas can't exceed the browser's max dimension
+  // (~65535px). For very tall threads, shrink the scale so the canvas fits and
+  // we still get a real PDF instead of a blank (all-white) one.
+  const contentHeight = container.scrollHeight || container.offsetHeight || 1;
+  const MAX_CANVAS_PX = 60000;
+  let scale = 1.5;
+  if (contentHeight * scale > MAX_CANVAS_PX) {
+    scale = Math.max(0.3, MAX_CANVAS_PX / contentHeight);
+    console.warn(`[GTD Offscreen] Tall thread (${contentHeight}px) — reducing render scale to ${scale.toFixed(2)} to avoid a blank canvas.`);
+  }
+
   const options = {
     margin: [10, 10, 10, 10],
     filename: 'email.pdf',
     image: { type: 'jpeg', quality: 0.95 },
     html2canvas: {
-      scale: 1.5,
+      scale,
       useCORS: true,
       allowTaint: true,
       logging: false,
@@ -90,6 +107,22 @@ async function convertToPdf({ subject, messages }) {
   container.innerHTML = '';
 
   return btoa(binary);
+}
+
+// Remove quoted reply chains (the previous messages a reply embeds). Each
+// earlier message is already rendered on its own, so the quotes are redundant
+// copies — dropping them keeps the thread readable and the page count sane.
+function stripQuotedHistory(root) {
+  const selectors = [
+    '.gmail_quote',             // Gmail
+    'blockquote.gmail_quote',
+    'blockquote[type="cite"]',  // Apple Mail / cite-style quotes
+    '.moz-cite-prefix',         // Thunderbird "On ... wrote:" prefix
+    '#divRplyFwdMsg',           // Outlook reply/forward block
+    'div[id^="divRplyFwdMsg"]',
+    '#appendonsend',            // Outlook
+  ];
+  root.querySelectorAll(selectors.join(',')).forEach((el) => el.remove());
 }
 
 function cleanEmailHtml(html) {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Gmail2Drive",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Save selected Gmail emails as PDFs with attachments to Google Drive",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxJyhuCJ7zHBEb2hf8oMsrp3OsmyRh4TPdt3G2+k0xM5UOgUvsKVf73J3fQJzk1WYhxLO4BCr+/1c2ZvWZ/Gy+PDt/aSEaZFeHyQxG1401BV6FefmQnlfEIkee0W7fJZG2Tblu+RqstO9OZYOIf+qoEearT/LEdM8mWLUYzIAWc3yx6T3CYy//ZkYWU+R4BtQc1OIfsjdKUlercnvrcBxCVV29k8bNQeHnAiZ1FtUJq+ych4IhtOu7j23Uwekj/UATd2YHwW5p+R8naT3b0D6GndJa1LZvyOmYb+AemGMpN6IFnO1cMLbavOg8cS1/qvxqZXCUKO651xBxnuodoK2AQIDAQAB",
   "permissions": [
@@ -35,7 +35,6 @@
     }
   ],
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "assets/icons/icon-16.png",
       "32": "assets/icons/icon-32.png",
@@ -49,7 +48,6 @@
       "matches": ["https://mail.google.com/*"]
     }
   ],
-  "options_page": "options.html",
   "icons": {
     "16": "assets/icons/icon-16.png",
     "48": "assets/icons/icon-48.png",

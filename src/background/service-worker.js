@@ -1,5 +1,5 @@
-import { getToken, clearCachedToken } from '../lib/auth.js';
-import { getThread, threadExists, extractHtmlBody, extractAttachments, extractInlineImages, getAttachment, getMessageMeta, listRecentThreads } from '../lib/gmail-api.js';
+import { getToken } from '../lib/auth.js';
+import { getThread, extractHtmlBody, extractAttachments, extractInlineImages, getAttachment, getMessageMeta, listRecentThreads, getThreadMeta } from '../lib/gmail-api.js';
 import {
   ensureSavePath, smartUploadAnywhere,
   listSharedDrives, listFolders, getFolderInfo, createFolderInDrive,
@@ -8,6 +8,9 @@ import { generatePdf, handlePdfResponse, closeOffscreenDocument } from '../lib/p
 import { sanitizeFilename, arrayBufferToBase64, concurrencyLimit, retryWithBackoff } from '../lib/utils.js';
 
 const CONCURRENCY = 3;
+// Uploads are network-bound (not CPU), so a higher fan-out than the thread-fetch
+// concurrency shortens the upload-dominated tail of a save.
+const UPLOAD_CONCURRENCY = 6;
 
 // When the extension is installed or updated, Chrome orphans any content
 // script already running in open Gmail tabs — its context is invalidated and
@@ -43,6 +46,24 @@ async function reinjectIntoOpenTabs() {
   }
 }
 
+// The extension has no popup — clicking the toolbar icon focuses an open Gmail
+// tab (or opens one), since the real action lives on the in-Gmail button.
+chrome.action.onClicked.addListener(async () => {
+  try {
+    const tabs = await chrome.tabs.query({ url: 'https://mail.google.com/*' });
+    if (tabs.length > 0) {
+      await chrome.tabs.update(tabs[0].id, { active: true });
+      if (tabs[0].windowId != null) {
+        await chrome.windows.update(tabs[0].windowId, { focused: true });
+      }
+    } else {
+      await chrome.tabs.create({ url: 'https://mail.google.com/mail/u/0/' });
+    }
+  } catch (err) {
+    console.warn('[GTD] Could not open Gmail from toolbar click:', err.message);
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (handlePdfResponse(message)) return;
 
@@ -51,26 +72,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log('[GTD] SAVE_TO_DRIVE received, threadIds:', message.threadIds, 'dest:', message.destination);
       handleSaveToDrive(message.threadIds, sender.tab?.id, message.destination);
       return;
-
-    case 'GET_AUTH_STATUS':
-      getToken(false)
-        .then(() => sendResponse({ authenticated: true }))
-        .catch(() => sendResponse({ authenticated: false }));
-      return true;
-
-    case 'SIGN_IN':
-      getToken(true)
-        .then(() => sendResponse({ success: true }))
-        .catch((err) => sendResponse({ success: false, error: err.message }));
-      return true;
-
-    case 'SIGN_OUT':
-      import('../lib/auth.js').then(({ revokeToken }) => {
-        revokeToken()
-          .then(() => sendResponse({ success: true }))
-          .catch(() => sendResponse({ success: true }));
-      });
-      return true;
 
     case 'LIST_SHARED_DRIVES':
       getToken(true)
@@ -103,7 +104,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'RESOLVE_THREAD_IDS':
       getToken(true)
         .then((token) => resolveThreadIds(message.candidateIds, token))
-        .then((resolvedIds) => sendResponse({ resolvedIds }))
+        .then((result) => sendResponse(result))
         .catch((err) => sendResponse({ error: err.message }));
       return true;
   }
@@ -132,17 +133,15 @@ async function handleSaveToDrive(threadIds, tabId, destination) {
     return;
   }
 
-  const settings = await getSettings();
-
-  // Destination from folder picker overrides stored settings
+  // The folder picker always supplies the destination; remember it so the next
+  // save opens there instead of at the root.
   if (destination) {
-    settings.destinationFolderId = destination.folderId;
-    settings.driveId = destination.driveId;
     console.log('[GTD] Using picker destination:', destination.folderId, destination.path);
+    saveLastLocation(destination);
   }
 
-  const supportsShared = !!settings.driveId;
-  const destinationId = settings.destinationFolderId || 'root';
+  const supportsShared = !!destination?.driveId;
+  const destinationId = destination?.folderId || 'root';
   const results = { success: 0, failed: 0, errors: [], folderLinks: [] };
 
   try {
@@ -152,6 +151,10 @@ async function handleSaveToDrive(threadIds, tabId, destination) {
       status: `Fetching ${threadIds.length} conversation${threadIds.length > 1 ? 's' : ''}...`,
     });
 
+    // Per-thread folder names from the picker (each prefilled with the email's
+    // subject, individually editable), aligned with threadIds order.
+    const folderNames = destination?.folderNames || [];
+
     const fetchTasks = threadIds.map((id) => () => retryWithBackoff(() => getThread(id, token), 2));
     const settled = await concurrencyLimit(fetchTasks, CONCURRENCY);
 
@@ -159,7 +162,8 @@ async function handleSaveToDrive(threadIds, tabId, destination) {
     settled.forEach((r, i) => {
       const thread = r.status === 'fulfilled' ? r.value : null;
       if (thread?.messages?.length > 0) {
-        threads.push(thread);
+        // Keep each thread paired with its chosen folder name (order preserved).
+        threads.push({ thread, folderName: folderNames[i] });
       } else {
         results.failed++;
         results.errors.push({
@@ -174,11 +178,11 @@ async function handleSaveToDrive(threadIds, tabId, destination) {
     }
 
     // 2. Each conversation -> its own folder (named after that conversation's
-    //    subject), with one combined PDF and that conversation's attachments.
+    //    subject, or the user's edit), with one combined PDF and its attachments.
     for (let t = 0; t < threads.length; t++) {
       try {
         await saveConversation(
-          threads[t], destinationId, supportsShared, token, tabId, results, t + 1, threads.length
+          threads[t].thread, destinationId, supportsShared, token, tabId, results, t + 1, threads.length, threads[t].folderName
         );
         results.success++;
       } catch (err) {
@@ -205,18 +209,22 @@ async function handleSaveToDrive(threadIds, tabId, destination) {
 
 // Save one conversation into its own subject-named folder: a single combined
 // PDF of all its messages, plus all its attachments.
-async function saveConversation(thread, destinationId, supportsShared, token, tabId, results, index, total) {
+async function saveConversation(thread, destinationId, supportsShared, token, tabId, results, index, total, folderNameOverride) {
   const messages = thread.messages;
-  const folderName = sanitizeFilename(getMessageMeta(messages[0]).subject);
+  const rawName = folderNameOverride?.trim() || getMessageMeta(messages[0]).subject;
+  const folderName = sanitizeFilename(rawName);
   const label = total > 1 ? ` (${index}/${total})` : '';
+  const started = Date.now();
   console.log(`[GTD] Conversation "${folderName}": ${messages.length} message(s)`);
 
   notifyTab(tabId, {
     action: 'SAVE_PROGRESS', current: index - 1, total,
-    status: `Creating folder "${folderName}"${label}...`,
+    status: `Preparing "${folderName}"${label}...`,
   });
 
-  const folder = await ensureSavePath(destinationId, null, folderName, token, supportsShared);
+  // Kick off folder creation immediately so it overlaps with PDF preparation
+  // below — the two are independent and each takes ~1-3s.
+  const folderPromise = ensureSavePath(destinationId, null, folderName, token, supportsShared);
 
   // One combined PDF of every message in this conversation. Inline images
   // (cid: references) are downloaded and embedded so they render in the PDF.
@@ -229,31 +237,15 @@ async function saveConversation(thread, destinationId, supportsShared, token, ta
     pdfMessages.push({ html, from: meta.from, date: meta.date, subject: meta.subject });
   }
 
-  if (pdfMessages.length > 0) {
-    notifyTab(tabId, {
-      action: 'SAVE_PROGRESS', current: index - 1, total,
-      status: `Generating PDF for "${folderName}"${label}...`,
-    });
+  // Start rendering the PDF now; it runs concurrently with attachment uploads.
+  const pdfPromise = pdfMessages.length > 0
+    ? generatePdf(folderName, pdfMessages)
+    : Promise.resolve(null);
 
-    const pdfData = await generatePdf(folderName, pdfMessages);
-    const pdfBytes = base64ToUint8Array(pdfData);
+  // Every upload needs the destination folder (creation was started above).
+  const folder = await folderPromise;
 
-    notifyTab(tabId, {
-      action: 'SAVE_PROGRESS', current: index - 1, total,
-      status: `Uploading PDF for "${folderName}"${label}...`,
-    });
-
-    const uploaded = await smartUploadAnywhere(
-      `${folderName}.pdf`, 'application/pdf', pdfBytes, folder.id, token, supportsShared
-    );
-    console.log(`[GTD] PDF uploaded: ${uploaded.id}`);
-    results.folderLinks.push(uploaded.webViewLink);
-  } else {
-    console.warn(`[GTD] No HTML bodies found in "${folderName}"`);
-  }
-
-  // All attachments from this conversation, into the same folder. Quoted
-  // replies repeat the same files, so dedupe by name + size + type.
+  // Dedupe attachments across the thread — quoted replies repeat the same files.
   const attachments = [];
   const seen = new Set();
   for (const message of messages) {
@@ -265,25 +257,59 @@ async function saveConversation(thread, destinationId, supportsShared, token, ta
     }
   }
 
-  if (attachments.length > 0) {
-    const totalAtt = attachments.length;
-    let doneAtt = 0;
-    const attachmentTasks = attachments.map(({ messageId, att }) => async () => {
-      try {
-        await uploadAttachment(messageId, att, folder.id, token, supportsShared);
-      } catch (err) {
-        console.error(`[GTD] Attachment "${att.filename}" failed:`, err.message);
-        results.errors.push({ attachment: att.filename, error: err.message });
-      } finally {
-        doneAtt++;
-        notifyTab(tabId, {
-          action: 'SAVE_PROGRESS', current: index - 1, total,
-          status: `Uploading attachments for "${folderName}" (${doneAtt}/${totalAtt})${label}...`,
-        });
-      }
+  // Attachments go into an "Attachments" subfolder so the PDF stays uncluttered
+  // at the top of the conversation folder. Create it concurrently (only when
+  // there are attachments) so it overlaps with PDF rendering.
+  const attachmentsFolderPromise = attachments.length > 0
+    ? ensureSavePath(folder.id, null, 'Attachments', token, supportsShared)
+    : Promise.resolve(null);
+
+  // Upload the PDF and every attachment concurrently. Uploads are network-bound
+  // and dominate save time, so running them in parallel is the biggest win. The
+  // PDF task simply awaits the render that's already in flight.
+  const uploadTasks = [];
+
+  uploadTasks.push(async () => {
+    const pdfData = await pdfPromise;
+    if (!pdfData) {
+      console.warn(`[GTD] No HTML bodies found in "${folderName}"`);
+      return;
+    }
+    const pdfBytes = base64ToUint8Array(pdfData);
+    const uploaded = await smartUploadAnywhere(
+      `${folderName}.pdf`, 'application/pdf', pdfBytes, folder.id, token, supportsShared
+    );
+    console.log(`[GTD] PDF uploaded: ${uploaded.id}`);
+    results.folderLinks.push(uploaded.webViewLink);
+  });
+
+  for (const { messageId, att } of attachments) {
+    uploadTasks.push(async () => {
+      const attFolder = await attachmentsFolderPromise;
+      await uploadAttachment(messageId, att, attFolder.id, token, supportsShared);
     });
-    await concurrencyLimit(attachmentTasks, CONCURRENCY);
   }
+
+  const totalTasks = uploadTasks.length;
+  let doneTasks = 0;
+  const tracked = uploadTasks.map((task, i) => async () => {
+    try {
+      await task();
+    } catch (err) {
+      const what = i === 0 ? 'PDF' : attachments[i - 1].att.filename;
+      console.error(`[GTD] Upload "${what}" failed:`, err.message);
+      results.errors.push({ item: what, error: err.message });
+    } finally {
+      doneTasks++;
+      notifyTab(tabId, {
+        action: 'SAVE_PROGRESS', current: index - 1, total,
+        status: `Saving "${folderName}" (${doneTasks}/${totalTasks})${label}...`,
+      });
+    }
+  });
+
+  await concurrencyLimit(tracked, UPLOAD_CONCURRENCY);
+  console.log(`[GTD] Saved "${folderName}" in ${Date.now() - started}ms`);
 }
 
 // Replace cid: image references in the HTML with embedded data URIs so they
@@ -339,39 +365,44 @@ function notifyTab(tabId, message) {
 }
 
 async function resolveThreadIds(candidateIds, token) {
-  // Validate all candidate IDs in parallel using lightweight existence checks
-  // (no message bodies). processThread re-fetches the full thread later.
-  const checks = await Promise.all(
-    candidateIds.map((id) => threadExists(id, token).then((ok) => (ok ? id : null)))
+  // Validate all candidate IDs in parallel. getThreadMeta both validates (throws
+  // for bad ids) and returns the subject we use to prefill folder-name fields,
+  // so one metadata call per candidate covers both needs.
+  const metas = await Promise.all(
+    candidateIds.map((id) => getThreadMeta(id, token).catch(() => null))
   );
-  const validIds = checks.filter(Boolean);
+  let resolved = metas.filter(Boolean);
 
-  if (validIds.length > 0) {
-    console.log(`[GTD] ${validIds.length}/${candidateIds.length} candidate IDs are valid`);
-    return validIds;
+  if (resolved.length > 0) {
+    console.log(`[GTD] ${resolved.length}/${candidateIds.length} candidate IDs are valid`);
+  } else {
+    // Fallback: list recent threads and fetch their subjects.
+    console.log(`[GTD] None of the ${candidateIds.length} DOM IDs were valid API IDs. Falling back to recent threads.`);
+    const response = await listRecentThreads(token, candidateIds.length);
+    const threads = response.threads || [];
+    console.log(`[GTD] Got ${threads.length} recent threads as fallback`);
+    resolved = await Promise.all(
+      threads.map((t) => getThreadMeta(t.id, token).catch(() => ({ id: t.id, subject: '(no subject)' })))
+    );
   }
 
-  // Fallback: list recent threads and return the count the user selected
-  console.log(`[GTD] None of the ${candidateIds.length} DOM IDs were valid API IDs. Falling back to recent threads.`);
-  const response = await listRecentThreads(token, candidateIds.length);
-  const threads = response.threads || [];
-  console.log(`[GTD] Got ${threads.length} recent threads as fallback`);
-  return threads.map((t) => t.id);
+  // Per-thread subjects, aligned with resolvedIds, so the picker can offer one
+  // editable folder name per selected email.
+  return {
+    resolvedIds: resolved.map((r) => r.id),
+    subjects: resolved.map((r) => r.subject),
+  };
 }
 
-async function getSettings() {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(
-      {
-        destinationFolderId: null,
-        destinationFolderName: null,
-        destinationPath: 'My Drive',
-        driveId: null,
-        driveName: null,
-        createDateFolders: true,
-        exportAllMessages: true,
-      },
-      resolve
-    );
+// Remember where the user last saved so the picker can reopen there. Only the
+// fields the picker needs to restore the location — not the per-save name.
+function saveLastLocation(destination) {
+  chrome.storage.sync.set({
+    lastLocation: {
+      folderId: destination.folderId,
+      folderName: destination.folderName,
+      driveId: destination.driveId || null,
+      path: destination.path,
+    },
   });
 }

@@ -94,11 +94,14 @@ function handleSaveClick() {
         return;
       }
 
-      // Hide progress, show folder picker
+      // Hide progress, show folder picker. For a single email we pass its
+      // subject so the picker can prefill an editable folder-name field, and the
+      // last-used location so it opens there instead of at the root.
       const progressPanel = document.getElementById('gmail-to-drive-progress');
       if (progressPanel) progressPanel.remove();
 
-      showFolderPicker(threadIds.length, (selectedFolder) => {
+      chrome.storage.sync.get({ lastLocation: null }, ({ lastLocation }) => {
+      showFolderPicker(threadIds.length, response?.subjects || [], lastLocation, (selectedFolder) => {
         showProgressPanel();
         updateProgress(0, threadIds.length, 'Starting...');
 
@@ -116,6 +119,7 @@ function handleSaveClick() {
         } catch (_) {
           showError('Gmail2Drive was just updated. Please try again in a moment.');
         }
+      });
       });
     }
   );

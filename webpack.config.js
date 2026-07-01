@@ -6,8 +6,6 @@ module.exports = {
     'service-worker': './src/background/service-worker.js',
     'content-script': './src/content/content-script.js',
     'offscreen': './src/offscreen/offscreen.js',
-    'popup': './src/popup/popup.js',
-    'options': './src/options/options.js',
   },
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -27,10 +25,6 @@ module.exports = {
     new CopyPlugin({
       patterns: [
         { from: 'manifest.json', to: '.' },
-        { from: 'src/popup/popup.html', to: '.' },
-        { from: 'src/popup/popup.css', to: '.' },
-        { from: 'src/options/options.html', to: '.' },
-        { from: 'src/options/options.css', to: '.' },
         { from: 'src/offscreen/offscreen.html', to: '.' },
         { from: 'src/styles/gmail-inject.css', to: '.' },
         { from: 'assets', to: 'assets', globOptions: { ignore: ['**/design/**'] } },

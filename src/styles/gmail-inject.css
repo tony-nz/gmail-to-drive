@@ -191,6 +191,43 @@
   opacity: 1;
 }
 
+.gtd-picker-names {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #dadce0;
+}
+
+/* When several emails are selected, cap the height and scroll the name list. */
+.gtd-picker-names-multi {
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.gtd-picker-name-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #5f6368;
+}
+
+.gtd-picker-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #202124;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  outline: none;
+}
+
+.gtd-picker-name-input:focus {
+  border-color: #4285f4;
+  box-shadow: 0 0 0 1px #4285f4;
+}
+
 .gtd-picker-tabs {
   display: flex;
   border-bottom: 1px solid #dadce0;

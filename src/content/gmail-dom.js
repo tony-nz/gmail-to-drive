@@ -32,12 +32,7 @@ function getAnchorButton() {
          null;
 }
 
-export function injectButton() {
-  if (document.getElementById(BUTTON_ID)) return;
-
-  const bar = getActionBar();
-  if (!bar) return;
-
+function createButton() {
   const button = document.createElement('div');
   button.id = BUTTON_ID;
   button.className = 'gmail-to-drive-button';
@@ -55,16 +50,36 @@ export function injectButton() {
     <span class="gmail-to-drive-label">Save to Drive</span>
   `;
 
-  // Place it immediately after the Delete/Archive icon so it stays in the
-  // action cluster regardless of which Gmail view is showing.
+  return button;
+}
+
+// Create the button if missing, and keep it docked right after the
+// Delete/Archive icon. The anchor icons only appear once a row is selected, so
+// on a fresh load the button can be created before they exist and land at the
+// end of the bar (far right). Repositioning here — driven by the toolbar
+// observer — snaps it back into the action cluster as soon as the anchor shows.
+// Returns the button only when newly created, so callers bind listeners once.
+export function injectButton() {
+  const bar = getActionBar();
+  if (!bar) return null;
+
+  let button = document.getElementById(BUTTON_ID);
+  const isNew = !button;
+  if (!button) button = createButton();
+
   const anchor = getAnchorButton();
   if (anchor && anchor.parentElement) {
-    anchor.parentElement.insertBefore(button, anchor.nextSibling);
-  } else {
+    // Only touch the DOM when the button isn't already right after the anchor,
+    // so repeated observer calls don't churn (or loop on their own mutations).
+    if (button.parentElement !== anchor.parentElement || button.previousElementSibling !== anchor) {
+      anchor.parentElement.insertBefore(button, anchor.nextSibling);
+    }
+  } else if (isNew) {
+    // No anchor yet (nothing selected) — park at the end until one appears.
     bar.appendChild(button);
   }
 
-  return button;
+  return isNew ? button : null;
 }
 
 export function getSelectedThreadIds() {
@@ -153,13 +168,18 @@ function cleanThreadId(id) {
 
 export function observeToolbarChanges(callback) {
   const target = document.querySelector('[role="main"]') || document.body;
+
+  // Gmail mutates its DOM constantly, so coalesce bursts into one check per
+  // frame. The callback both (re)creates the button when missing and repositions
+  // it when the Delete/Archive anchor appears or the toolbar is rebuilt.
+  let scheduled = false;
   const observer = new MutationObserver(() => {
-    if (!document.getElementById(BUTTON_ID)) {
-      const bar = getActionBar();
-      if (bar) {
-        callback();
-      }
-    }
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      if (getActionBar()) callback();
+    });
   });
 
   observer.observe(target, {

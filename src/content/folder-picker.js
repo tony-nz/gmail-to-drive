@@ -6,13 +6,29 @@ let currentFolderId = 'root';
 let currentFolderName = 'My Drive';
 let currentDriveId = null;
 
-export function showFolderPicker(emailCount, onSelect) {
+export function showFolderPicker(emailCount, defaultNames, defaultLocation, onSelect) {
   closePicker();
   pickerCallback = onSelect;
   navStack = [];
-  currentFolderId = 'root';
-  currentFolderName = 'My Drive';
-  currentDriveId = null;
+
+  // Reopen at the last-used location when we have one; otherwise My Drive root.
+  const loc = defaultLocation && defaultLocation.folderId ? defaultLocation : null;
+  currentFolderId = loc ? loc.folderId : 'root';
+  currentFolderName = loc ? (loc.folderName || 'Selected folder') : 'My Drive';
+  currentDriveId = loc ? (loc.driveId || null) : null;
+
+  const initialTab = currentDriveId ? 'shared' : 'my-drive';
+  const initialPath = loc ? (loc.path || currentFolderName) : 'My Drive';
+
+  // One editable folder name per selected email, prefilled with its subject.
+  const names = Array.isArray(defaultNames) ? defaultNames : (defaultNames ? [defaultNames] : []);
+  const multi = names.length > 1;
+  const nameFieldsHtml = names.length > 0 ? `
+      <div class="gtd-picker-names ${multi ? 'gtd-picker-names-multi' : ''}">
+        <label class="gtd-picker-name-label">${multi ? 'Folder names' : 'Folder name'}</label>
+        ${names.map(() => '<input type="text" class="gtd-picker-name-input" placeholder="Folder name" />').join('')}
+      </div>
+  ` : '';
 
   const overlay = document.createElement('div');
   overlay.id = PICKER_ID;
@@ -23,13 +39,14 @@ export function showFolderPicker(emailCount, onSelect) {
         <span>Save ${emailCount} email(s) to Google Drive</span>
         <button class="gtd-picker-close">&times;</button>
       </div>
+      ${nameFieldsHtml}
       <div class="gtd-picker-tabs">
-        <button class="gtd-picker-tab active" data-tab="my-drive">My Drive</button>
-        <button class="gtd-picker-tab" data-tab="shared">Shared Drives</button>
+        <button class="gtd-picker-tab ${initialTab === 'my-drive' ? 'active' : ''}" data-tab="my-drive">My Drive</button>
+        <button class="gtd-picker-tab ${initialTab === 'shared' ? 'active' : ''}" data-tab="shared">Shared Drives</button>
       </div>
       <div class="gtd-picker-nav">
         <button class="gtd-picker-back" disabled>&larr;</button>
-        <span class="gtd-picker-path">My Drive</span>
+        <span class="gtd-picker-path">${escapeHtml(initialPath)}</span>
       </div>
       <div class="gtd-picker-list">
         <div class="gtd-picker-loading">Loading...</div>
@@ -62,7 +79,25 @@ export function showFolderPicker(emailCount, onSelect) {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
   });
 
-  loadFolders('root', null);
+  // Set values via property (not an HTML attribute) so subjects with quotes are
+  // safe, and let Enter in any field commit the save.
+  overlay.querySelectorAll('.gtd-picker-name-input').forEach((input, i) => {
+    input.value = names[i] || '';
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSelect();
+      }
+    });
+  });
+
+  loadFolders(currentFolderId, currentDriveId);
+
+  // Opened at a remembered location — rebuild the back stack so the user can
+  // navigate up to My Drive.
+  if (loc && currentFolderId && currentFolderId !== 'root') {
+    restoreAncestry(currentFolderId, currentDriveId);
+  }
 }
 
 function closePicker() {
@@ -186,12 +221,63 @@ function buildPath() {
     parts.push('My Drive');
   }
   for (const entry of navStack) {
-    if (entry.type !== 'drives-list') {
-      parts.push(entry.name);
-    }
+    if (entry.type === 'drives-list') continue;
+    if (entry.id === 'root') continue; // 'My Drive' is already the prefix
+    parts.push(entry.name);
   }
-  parts.push(currentFolderName);
+  // Don't repeat 'My Drive' when we're sitting at the My Drive root itself.
+  if (currentFolderId !== 'root') {
+    parts.push(currentFolderName);
+  }
   return parts.join(' / ');
+}
+
+function getFolderInfoAsync(folderId) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ action: 'GET_FOLDER_INFO', folderId }, (response) => {
+      if (chrome.runtime.lastError || response?.error) resolve(null);
+      else resolve(response?.folder || null);
+    });
+  });
+}
+
+// When the picker opens directly at a remembered location, navStack is empty so
+// Back is disabled. Walk up the parent chain (via the Drive API) to rebuild the
+// breadcrumb/back stack, enabling navigation all the way up to My Drive. Runs in
+// the background; folder contents are already shown. Fails silently (Back stays
+// disabled) so a hiccup is no worse than before.
+async function restoreAncestry(startFolderId, driveId) {
+  try {
+    const stack = [];
+    let info = await getFolderInfoAsync(startFolderId);
+    let guard = 0;
+    while (info && info.parents && info.parents.length && guard++ < 20) {
+      const parentInfo = await getFolderInfoAsync(info.parents[0]);
+      if (!parentInfo) break;
+
+      const isTop = !parentInfo.parents || parentInfo.parents.length === 0;
+      if (isTop) {
+        if (driveId) {
+          stack.unshift({ id: parentInfo.id, name: parentInfo.name, driveId, type: 'folder' });
+          stack.unshift({ id: null, name: 'Shared Drives', driveId: null, type: 'drives-list' });
+        } else {
+          stack.unshift({ id: 'root', name: 'My Drive', driveId: null, type: 'folder' });
+        }
+        break;
+      }
+      stack.unshift({ id: parentInfo.id, name: parentInfo.name, driveId: driveId || null, type: 'folder' });
+      info = parentInfo;
+    }
+
+    // Bail if the picker closed or the user already started navigating.
+    if (!document.getElementById(PICKER_ID)) return;
+    if (navStack.length > 0 || currentFolderId !== startFolderId) return;
+
+    navStack = stack;
+    updateNav();
+  } catch (_) {
+    // Leave Back disabled on any failure.
+  }
 }
 
 function handleBack() {
@@ -215,11 +301,19 @@ function handleBack() {
 
 function handleSelect() {
   if (!pickerCallback) return;
+  const picker = document.getElementById(PICKER_ID);
+
+  // One folder name per selected email, in order (blank falls back to the
+  // subject on the backend).
+  const folderNames = Array.from(picker?.querySelectorAll('.gtd-picker-name-input') || [])
+    .map((input) => input.value.trim());
+
   const destination = {
     folderId: currentFolderId,
     folderName: currentFolderName,
     driveId: currentDriveId,
     path: buildPath(),
+    folderNames,
   };
   const cb = pickerCallback;
   closePicker();

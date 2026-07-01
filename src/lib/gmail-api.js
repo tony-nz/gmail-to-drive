@@ -33,6 +33,18 @@ export async function getMessage(messageId, token) {
   return apiGet(`/messages/${messageId}?format=full`, token);
 }
 
+// Lightweight thread lookup (metadata only, no bodies). Doubles as an existence
+// check — it throws for invalid ids — while returning the subject we use to
+// prefill folder-name fields in the picker, so it replaces a separate probe.
+export async function getThreadMeta(threadId, token) {
+  const data = await apiGet(
+    `/threads/${threadId}?format=metadata&metadataHeaders=Subject`,
+    token
+  );
+  const headers = data.messages?.[0]?.payload?.headers || [];
+  return { id: threadId, subject: extractHeader(headers, 'Subject') || '(no subject)' };
+}
+
 export async function listRecentThreads(token, maxResults = 50) {
   return apiGet(`/threads?maxResults=${maxResults}&fields=threads(id,snippet)`, token);
 }
