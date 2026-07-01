@@ -9,6 +9,40 @@ import { sanitizeFilename, arrayBufferToBase64, concurrencyLimit, retryWithBacko
 
 const CONCURRENCY = 3;
 
+// When the extension is installed or updated, Chrome orphans any content
+// script already running in open Gmail tabs — its context is invalidated and
+// the "Save to Drive" button silently stops working until the page reloads.
+// Gmail is a long-lived SPA that users leave open for days, so we can't rely on
+// a reload. Instead, re-inject a fresh content script into every open Gmail tab
+// so the button keeps working seamlessly, no reload required.
+chrome.runtime.onInstalled.addListener((details) => {
+  if (['install', 'update', 'chrome_update'].includes(details.reason)) {
+    reinjectIntoOpenTabs();
+  }
+});
+
+async function reinjectIntoOpenTabs() {
+  let tabs;
+  try {
+    tabs = await chrome.tabs.query({ url: 'https://mail.google.com/*' });
+  } catch (err) {
+    console.warn('[GTD] Could not query Gmail tabs for re-injection:', err.message);
+    return;
+  }
+
+  for (const tab of tabs) {
+    if (!tab.id) continue;
+    try {
+      await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ['gmail-inject.css'] });
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content-script.js'] });
+      console.log('[GTD] Re-injected content script into tab', tab.id);
+    } catch (err) {
+      // Tab may be discarded, still loading, or otherwise not injectable — skip it.
+      console.warn('[GTD] Re-inject failed for tab', tab.id, err.message);
+    }
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (handlePdfResponse(message)) return;
 

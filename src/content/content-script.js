@@ -2,10 +2,36 @@ import { waitForGmailReady, injectButton, getSelectedThreadIds, observeToolbarCh
 import { showProgressPanel, updateProgress, showCompletion, showError } from './progress-ui.js';
 import { showFolderPicker } from './folder-picker.js';
 
+// Shared handle on the page window so a freshly injected instance (e.g. after an
+// extension update re-injects us via chrome.scripting) can clean up the previous
+// instance's observer and button before taking over. This keeps the button
+// working across updates without ever reloading the tab.
+const GTD = (window.__gmailToDrive = window.__gmailToDrive || {});
+
+// True while our extension context is still valid. Once the extension is
+// reloaded/updated, any chrome.runtime.* call from this (now orphaned) script
+// throws "Extension context invalidated". A fresh instance will be injected to
+// replace us, but guard against clicks that land in the gap.
+function extensionAlive() {
+  return !!(chrome.runtime && chrome.runtime.id);
+}
+
+// Disconnect a previous instance's observer and remove its (possibly orphaned)
+// button so we never end up with a duplicate or a dead button.
+function teardownPrevious() {
+  if (GTD.observer) {
+    try { GTD.observer.disconnect(); } catch (_) { /* already gone */ }
+    GTD.observer = null;
+  }
+  const stale = document.getElementById('gmail-to-drive-btn');
+  if (stale) stale.remove();
+}
+
 async function init() {
+  teardownPrevious();
   await waitForGmailReady();
   setupButton();
-  observeToolbarChanges(setupButton);
+  GTD.observer = observeToolbarChanges(setupButton);
 }
 
 function setupButton() {
@@ -22,6 +48,12 @@ function setupButton() {
 }
 
 function handleSaveClick() {
+  if (!extensionAlive()) {
+    showProgressPanel();
+    showError('Gmail2Drive was just updated. Please try again in a moment.');
+    return;
+  }
+
   const candidateIds = getSelectedThreadIds();
   console.log('[GTD Content] Selected IDs from DOM:', candidateIds);
 
@@ -41,9 +73,14 @@ function handleSaveClick() {
   showProgressPanel();
   updateProgress(0, candidateIds.length, 'Resolving selected emails...');
 
-  chrome.runtime.sendMessage(
+  try {
+    chrome.runtime.sendMessage(
     { action: 'RESOLVE_THREAD_IDS', candidateIds },
     (response) => {
+      if (chrome.runtime.lastError) {
+        showError('Gmail2Drive was just updated. Please try again in a moment.');
+        return;
+      }
       if (response?.error) {
         showError(`Failed to resolve emails: ${response.error}`);
         return;
@@ -65,14 +102,26 @@ function handleSaveClick() {
         showProgressPanel();
         updateProgress(0, threadIds.length, 'Starting...');
 
-        chrome.runtime.sendMessage({
-          action: 'SAVE_TO_DRIVE',
-          threadIds,
-          destination: selectedFolder,
-        });
+        if (!extensionAlive()) {
+          showError('Gmail2Drive was just updated. Please try again in a moment.');
+          return;
+        }
+
+        try {
+          chrome.runtime.sendMessage({
+            action: 'SAVE_TO_DRIVE',
+            threadIds,
+            destination: selectedFolder,
+          });
+        } catch (_) {
+          showError('Gmail2Drive was just updated. Please try again in a moment.');
+        }
       });
     }
   );
+  } catch (_) {
+    showError('Gmail2Drive was just updated. Please try again in a moment.');
+  }
 }
 
 chrome.runtime.onMessage.addListener((message) => {
