@@ -9,84 +9,129 @@
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png" />
   <link rel="icon" type="image/png" sizes="128x128" href="favicon-128.png" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-  <meta name="theme-color" content="#1a73e8" />
+  <meta name="theme-color" content="#ffffff" />
   <style>
     :root {
-      --blue: #1a73e8;
-      --ink: #202124;
-      --muted: #5f6368;
-      --line: #e8eaed;
-      --bg: #f8f9fa;
+      --fg: #1f2328;
+      --muted: #59636e;
+      --border: #d1d9e0;
+      --border-muted: #d8dee4;
+      --canvas: #ffffff;
+      --subtle: #f6f8fa;
+      --accent: #0969da;
+      --success: #1f883d;
+      --success-hover: #1a7f37;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: 'Google Sans', Roboto, -apple-system, Arial, sans-serif;
-      color: var(--ink);
-      line-height: 1.6;
-      background: #fff;
-    }
-    .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
-    header {
-      text-align: center;
-      padding: 72px 24px 48px;
-      background: linear-gradient(180deg, #fff 0%, var(--bg) 100%);
-      border-bottom: 1px solid var(--line);
-    }
-    header img { width: 96px; height: 96px; }
-    header h1 { font-size: 40px; margin: 16px 0 8px; }
-    header p { font-size: 19px; color: var(--muted); margin: 0 auto; max-width: 540px; }
-    .btn {
-      display: inline-block;
-      margin-top: 28px;
-      background: var(--blue);
-      color: #fff;
-      text-decoration: none;
-      padding: 12px 28px;
-      border-radius: 24px;
-      font-weight: 500;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+      color: var(--fg);
+      line-height: 1.5;
+      background: var(--canvas);
       font-size: 16px;
     }
-    .btn.secondary { background: #fff; color: var(--blue); border: 1px solid #dadce0; margin-left: 8px; }
-    section { padding: 48px 0; }
-    h2 { font-size: 26px; margin: 0 0 24px; }
-    .features { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    @media (max-width: 600px) { .features { grid-template-columns: 1fr; } }
-    .card {
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 20px 22px;
-      background: #fff;
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 1012px; margin: 0 auto; padding: 0 24px; }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      background: var(--subtle);
     }
-    .card h3 { margin: 0 0 6px; font-size: 17px; }
-    .card p { margin: 0; color: var(--muted); font-size: 15px; }
-    ol { padding-left: 20px; }
-    ol li { margin-bottom: 10px; }
+    .hero { text-align: center; padding: 64px 24px 56px; }
+    .hero img { width: 88px; height: 88px; }
+    .hero h1 { font-size: 40px; font-weight: 600; margin: 20px 0 8px; letter-spacing: -0.5px; }
+    .hero p { font-size: 20px; color: var(--muted); margin: 0 auto; max-width: 560px; font-weight: 400; }
+    .actions { margin-top: 28px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 500;
+      border: 1px solid rgba(31,35,40,0.15);
+      cursor: pointer;
+    }
+    .btn:hover { text-decoration: none; }
+    .btn-primary { background: var(--success); color: #fff; border-color: rgba(31,35,40,0.15); }
+    .btn-primary:hover { background: var(--success-hover); }
+    .btn-default { background: #f6f8fa; color: var(--fg); border-color: var(--border); }
+    .btn-default:hover { background: #eef1f4; }
+    .btn svg { display: block; }
+
+    section { padding: 48px 0; border-bottom: 1px solid var(--border-muted); }
+    section:last-of-type { border-bottom: none; }
+    h2 { font-size: 24px; font-weight: 600; margin: 0 0 8px; }
+    .lead { color: var(--muted); margin: 0 0 28px; font-size: 16px; }
+
+    .features { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 640px) { .features { grid-template-columns: 1fr; } }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 18px 20px;
+      background: var(--canvas);
+    }
+    .card h3 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+
+    .steps { list-style: none; counter-reset: step; padding: 0; margin: 0; max-width: 720px; }
+    .steps li {
+      counter-increment: step;
+      position: relative;
+      padding: 0 0 20px 44px;
+      border-left: 2px solid var(--border);
+      margin-left: 15px;
+    }
+    .steps li:last-child { border-left-color: transparent; padding-bottom: 0; }
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: -15px;
+      top: -2px;
+      width: 28px; height: 28px;
+      background: var(--subtle);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 600; color: var(--muted);
+    }
+    .steps li strong { color: var(--fg); }
+
     footer {
-      border-top: 1px solid var(--line);
       padding: 32px 24px;
       text-align: center;
       color: var(--muted);
-      font-size: 14px;
+      font-size: 13px;
     }
-    footer a { color: var(--blue); text-decoration: none; }
-    .note { background: var(--bg); border-radius: 12px; padding: 16px 20px; color: var(--muted); font-size: 14px; }
+    footer a { color: var(--muted); }
+    footer .sep { margin: 0 8px; color: var(--border); }
   </style>
 </head>
 <body>
   <header>
-    <img src="logo.png" alt="Gmail2Drive logo" />
-    <h1>Gmail2Drive</h1>
-    <p>Save selected Gmail emails as PDFs — with their attachments — straight to your Google Drive, organised into folders.</p>
-    <div>
-      <a class="btn" href="#install">Get started</a>
-      <a class="btn secondary" href="privacy.html">Privacy</a>
+    <div class="hero">
+      <img src="logo.png" alt="Gmail2Drive logo" />
+      <h1>Gmail2Drive</h1>
+      <p>Save selected Gmail emails as PDFs — with their attachments — straight to your Google Drive, organised into folders.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="https://chromewebstore.google.com/detail/gmail2drive/gjcjedhjiilhefkpekkfjjknlgnamkan">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.66 5.02L8.5 15.9A4 4 0 0 1 8 12a4 4 0 0 1 4-4h9.54A10 10 0 0 0 12 2Zm10 8.5h-8.02A4 4 0 0 1 16 12a4 4 0 0 1-2.02 3.47l-3.9 6.44A10 10 0 0 0 22 10.5ZM7.7 16.9 3.2 9.06A10 10 0 0 0 11.4 22l3.36-5.55A4 4 0 0 1 12 16a4 4 0 0 1-4.3.9Z"/></svg>
+          Add to Chrome
+        </a>
+        <a class="btn btn-default" href="privacy.html">Privacy policy</a>
+      </div>
     </div>
   </header>
 
   <main class="wrap">
     <section>
       <h2>What it does</h2>
+      <p class="lead">Turn Gmail conversations into tidy, self-contained PDFs in your Drive.</p>
       <div class="features">
         <div class="card">
           <h3>One folder per conversation</h3>
@@ -117,23 +162,27 @@
 
     <section id="install">
       <h2>Getting started</h2>
-      <ol>
-        <li>Install Gmail2Drive (via the private install link shared with you).</li>
+      <p class="lead">Install from the Chrome Web Store and you're ready to save.</p>
+      <ol class="steps">
+        <li>Install Gmail2Drive from the <a href="https://chromewebstore.google.com/detail/gmail2drive/gjcjedhjiilhefkpekkfjjknlgnamkan">Chrome Web Store</a>.</li>
         <li>Open Gmail and select one or more conversations.</li>
         <li>Click <strong>Save to Drive</strong> in the toolbar.</li>
         <li>Approve the one-time Google permission prompt, then choose a destination folder.</li>
       </ol>
-      <p class="note">Gmail2Drive is currently distributed privately. To use it, your Google account must be added to the access list — contact the developer if you need access.</p>
     </section>
 
     <section>
       <h2>Privacy first</h2>
-      <p>Everything runs in your browser and talks only to Google's own Gmail and Drive APIs using your authorization. No external servers, no tracking, and nothing is collected. Read the full <a href="privacy.html">privacy policy</a>.</p>
+      <p class="lead" style="margin-bottom:0">Everything runs in your browser and talks only to Google's own Gmail and Drive APIs using your authorization. No external servers, no tracking, and nothing is collected. Read the full <a href="privacy.html">privacy policy</a>.</p>
     </section>
   </main>
 
   <footer>
-    <p>Gmail2Drive · <a href="privacy.html">Privacy Policy</a> · <a href="mailto:tony@myers.co.nz">tony@myers.co.nz</a></p>
+    <span>Gmail2Drive</span>
+    <span class="sep">·</span>
+    <a href="privacy.html">Privacy Policy</a>
+    <span class="sep">·</span>
+    <a href="mailto:tony@myers.co.nz">tony@myers.co.nz</a>
   </footer>
 </body>
 </html>

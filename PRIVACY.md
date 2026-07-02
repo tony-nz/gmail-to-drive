@@ -1,6 +1,6 @@
 # Gmail2Drive — Privacy Policy
 
-_Last updated: 21 June 2026_
+_Last updated: 2 July 2026_
 
 Gmail2Drive is a Chrome extension that saves Gmail emails you select as PDFs,
 along with their attachments, into your own Google Drive.
@@ -38,6 +38,10 @@ your Chrome profile. This never leaves Google's infrastructure.
 - `identity` — to obtain a Google OAuth token for the Gmail and Drive APIs.
 - `storage` — to remember your settings.
 - `offscreen` — to render selected emails to PDF in the background.
+- `scripting` — to inject the "Save to Drive" button into Gmail and keep it
+  working across extension updates.
+- `notifications` — to show progress and completion notices while emails are
+  being saved.
 - `activeTab` / host access to `mail.google.com` — to add the "Save to Drive"
   button to Gmail.
 - host access to `www.googleapis.com` — to call the Gmail and Drive APIs.
